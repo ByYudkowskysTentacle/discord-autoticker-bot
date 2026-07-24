@@ -22,7 +22,7 @@ RUN pip install -r requirements.txt
 # Ship the license and the source modules. Keeping the AGPL text in the image
 # is good practice for a copyleft project.
 COPY LICENSE ./
-COPY bot.py market_api.py utils.py ./
+COPY bot.py market_api.py utils.py setup_wizard.py ./
 
 # Run as an unprivileged user rather than root.
 RUN useradd --create-home --uid 10001 botuser

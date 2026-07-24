@@ -29,7 +29,10 @@ import discord
 from dotenv import load_dotenv
 
 from market_api import Quote, QuoteError, fetch_quote
+from setup_wizard import env_path, needs_setup, pause_if_windowed, run_wizard
 from utils import Cooldown, extract_tickers, is_market_open, is_source_request
+
+__version__ = "1.0.0"
 
 log = logging.getLogger("tickerbot")
 
@@ -59,6 +62,17 @@ class Config:
         if not self.finnhub_token:
             errors.append("FINNHUB_TOKEN is not set.")
         return errors
+
+
+def _is_interactive() -> bool:
+    """Return True if there is a real terminal to run the wizard in.
+
+    False inside Docker, systemd, and CI, where prompting would hang.
+    """
+    try:
+        return bool(sys.stdin) and sys.stdin.isatty()
+    except (AttributeError, ValueError):  # detached or closed stdin
+        return False
 
 
 def _float_env(name: str, default: float) -> float:
@@ -172,32 +186,85 @@ class TickerBot(discord.Client):
                 await message.channel.send(embed=build_embed(quote))
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    args = argv if argv is not None else sys.argv[1:]
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
     )
-    load_dotenv()
+
+    if "--help" in args or "-h" in args:
+        print(
+            "discord-autoticker-bot — replies to $TICKER mentions with quotes.\n"
+            "\n"
+            "Usage:\n"
+            "  (no arguments)   Start the bot, running setup first if needed.\n"
+            "  --setup          Re-run the interactive setup wizard.\n"
+            "  --version        Print the version and exit.\n"
+            "  --help           Show this message.\n"
+            f"\nSource: {DEFAULT_SOURCE_URL}"
+        )
+        return
+
+    if "--version" in args:
+        print(f"discord-autoticker-bot {__version__}")
+        return
+
+    env_file = env_path()
+
+    # Decide whether to run the setup wizard. Explicit --setup always wins.
+    # Otherwise we only offer it when there is genuinely nothing configured AND
+    # someone is there to answer: containers and services get their settings
+    # from real environment variables and have no interactive terminal, so they
+    # must never be dropped into a prompt.
+    wants_setup = "--setup" in args
+    if wants_setup or (
+        needs_setup(env_file) and not os.getenv("DISCORD_TOKEN") and _is_interactive()
+    ):
+        if not run_wizard(env_file):
+            pause_if_windowed()
+            sys.exit(1)
+
+    load_dotenv(env_file)
 
     config = Config()
     errors = config.validate()
     if errors:
         for err in errors:
             log.error("Config error: %s", err)
-        log.error("See .env.example for the required environment variables.")
+        log.error("Run with --setup to reconfigure, or edit %s", env_file)
+        pause_if_windowed()
         sys.exit(1)
 
     bot = TickerBot(config)
     try:
         bot.run(config.discord_token, log_handler=None)
     except discord.LoginFailure:
-        log.error("Discord rejected DISCORD_TOKEN — check the token is correct.")
+        log.error(
+            "Discord rejected DISCORD_TOKEN. Run with --setup to enter a new token."
+        )
+        pause_if_windowed()
         sys.exit(1)
     except discord.PrivilegedIntentsRequired:
         log.error(
             "Message Content Intent is not enabled. Turn it on in the Discord "
             "Developer Portal: Bot → Privileged Gateway Intents → Message Content Intent."
         )
+        pause_if_windowed()
+        sys.exit(1)
+    except KeyboardInterrupt:
+        log.info("Shutting down.")
+    # A plain traceback is useless to a non-technical user running the packaged
+    # app, so connection problems get a plain-language explanation instead.
+    except discord.HTTPException as exc:
+        log.error("Discord returned an error while starting up: %s", exc)
+        log.error("If this persists, check https://discordstatus.com/")
+        pause_if_windowed()
+        sys.exit(1)
+    except (aiohttp.ClientError, OSError) as exc:
+        log.error("Could not reach Discord (%s).", exc.__class__.__name__)
+        log.error("Check your internet connection and try again.")
+        pause_if_windowed()
         sys.exit(1)
 
 
