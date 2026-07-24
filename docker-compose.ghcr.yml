@@ -1,0 +1,22 @@
+# Fastest setup: run the PREBUILT image from GitHub Container Registry instead
+# of building from source. No clone or build step — you only need this file and
+# a .env beside it.
+#
+#   docker compose -f docker-compose.ghcr.yml up -d
+#
+# (Requires the maintainer to have published the image and made the GHCR package
+# public — see docs/DOCKER.md. Otherwise use the default docker-compose.yml,
+# which builds from source.)
+services:
+  bot:
+    image: ghcr.io/byyudkowskystentacle/discord-autoticker-bot:latest
+    container_name: autoticker-bot
+    pull_policy: always
+    env_file:
+      - .env
+    restart: unless-stopped
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

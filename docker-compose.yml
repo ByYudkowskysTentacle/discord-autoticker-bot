@@ -1,0 +1,28 @@
+# Run the bot with one command:  docker compose up -d
+#
+# This builds the image from the Dockerfile in this folder, reads your secrets
+# from the .env file next to it, restarts the bot automatically if it crashes
+# or the machine reboots, and rotates logs so they can't fill your disk.
+services:
+  bot:
+    build: .
+    image: discord-autoticker-bot:latest
+    container_name: autoticker-bot
+
+    # Load DISCORD_TOKEN, FINNHUB_TOKEN, etc. from the .env file.
+    env_file:
+      - .env
+
+    # Keep the bot running: restart on crash and on host reboot, but stay
+    # stopped if you deliberately `docker compose stop` it.
+    restart: unless-stopped
+
+    # A Discord bot makes only outbound connections — it never needs an inbound
+    # port, so none are published.
+
+    # Cap log growth (3 files × 10 MB) so long-running hosts don't fill up.
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
