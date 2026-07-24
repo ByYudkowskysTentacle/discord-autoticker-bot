@@ -49,9 +49,20 @@ jobs:
           "dist/${{ matrix.binary }}" --version
           "dist/${{ matrix.binary }}" --help > /dev/null
 
-      # Package the binary with the license and a short quick-start, since the
-      # AGPL requires the license to travel with the conveyed binary.
-      - name: Stage release archive
+      # Windows ships as a bare .exe: nothing to unpack, just download and run.
+      # The AGPL text travels inside the executable instead of beside it (see
+      # `--license`), so no sidecar files are needed.
+      - name: Name the bare executable (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: cp "dist/${{ matrix.binary }}" "${{ matrix.asset }}.exe"
+
+      # macOS and Linux stay archived: a bare binary downloaded through a
+      # browser loses its executable permission bit, forcing users to chmod +x,
+      # while tar preserves the mode. The archive also carries LICENSE and the
+      # quick-start guide.
+      - name: Stage release archive (macOS/Linux)
+        if: runner.os != 'Windows'
         shell: bash
         run: |
           set -euo pipefail
@@ -59,22 +70,13 @@ jobs:
           cp "dist/${{ matrix.binary }}" "staging/${{ matrix.asset }}/"
           cp LICENSE "staging/${{ matrix.asset }}/"
           cp docs/BINARY.md "staging/${{ matrix.asset }}/README.md"
-
-      - name: Archive (zip)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: Compress-Archive -Path "staging/${{ matrix.asset }}/*" -DestinationPath "${{ matrix.asset }}.zip"
-
-      - name: Archive (tar.gz)
-        if: runner.os != 'Windows'
-        shell: bash
-        run: tar -czf "${{ matrix.asset }}.tar.gz" -C staging "${{ matrix.asset }}"
+          tar -czf "${{ matrix.asset }}.tar.gz" -C staging "${{ matrix.asset }}"
 
       - uses: actions/upload-artifact@v6
         with:
           name: ${{ matrix.asset }}
           path: |
-            ${{ matrix.asset }}.zip
+            ${{ matrix.asset }}.exe
             ${{ matrix.asset }}.tar.gz
           if-no-files-found: error
 
@@ -107,16 +109,20 @@ jobs:
           body: |
             ## Downloads
 
-            | Platform | File |
-            | -------- | ---- |
-            | Windows  | `autoticker-bot-windows-x86_64.zip` |
-            | macOS (Apple Silicon) | `autoticker-bot-macos-arm64.tar.gz` |
-            | Linux    | `autoticker-bot-linux-x86_64.tar.gz` |
+            | Platform | File | To run |
+            | -------- | ---- | ------ |
+            | Windows  | `autoticker-bot-windows-x86_64.exe` | Download and double-click — no unzipping |
+            | macOS (Apple Silicon) | `autoticker-bot-macos-arm64.tar.gz` | Unpack, then run `./autoticker-bot` |
+            | Linux    | `autoticker-bot-linux-x86_64.tar.gz` | Unpack, then run `./autoticker-bot` |
 
-            Unpack, then run the executable — it walks you through setup on first
-            launch. See [docs/BINARY.md](docs/BINARY.md) for the full guide,
-            including how to get past the "unknown developer" warning your OS
-            will show (these builds are unsigned).
+            The executable walks you through setup on first launch. See
+            [docs/BINARY.md](docs/BINARY.md) for the full guide, including how to
+            get past the "unknown developer" warning your OS will show (these
+            builds are unsigned).
+
+            The macOS and Linux downloads are archived so the executable
+            permission bit survives; the Windows build needs no archive, and
+            carries its license internally — run it with `--license`.
 
             Verify your download against `SHA256SUMS.txt`.
 

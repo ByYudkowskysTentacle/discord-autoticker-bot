@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from pathlib import Path
 
 import aiohttp
 import discord
@@ -186,6 +187,34 @@ class TickerBot(discord.Client):
                 await message.channel.send(embed=build_embed(quote))
 
 
+def bundled_path(name: str) -> Path:
+    """Resolve a data file that ships beside the code, frozen or not.
+
+    PyInstaller unpacks bundled files to a temp directory it advertises as
+    ``sys._MEIPASS``; running from source they simply sit next to this module.
+    """
+    base = getattr(sys, "_MEIPASS", None)
+    if base:
+        return Path(base) / name
+    return Path(__file__).resolve().parent / name
+
+
+def license_text() -> str:
+    """Return the AGPL text bundled with this build.
+
+    The Windows executable is distributed as a bare .exe with no accompanying
+    files, so the license has to be reachable from the program itself to keep
+    conveying it intact. Falls back to a pointer if the file is somehow absent.
+    """
+    try:
+        return bundled_path("LICENSE").read_text(encoding="utf-8")
+    except OSError:
+        return (
+            "The full GNU AGPL-3.0 text could not be read from this build.\n"
+            f"Read it here: {DEFAULT_SOURCE_URL}/blob/main/LICENSE"
+        )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = argv if argv is not None else sys.argv[1:]
     logging.basicConfig(
@@ -201,6 +230,7 @@ def main(argv: list[str] | None = None) -> None:
             "  (no arguments)   Start the bot, running setup first if needed.\n"
             "  --setup          Re-run the interactive setup wizard.\n"
             "  --version        Print the version and exit.\n"
+            "  --license        Print the full software license and exit.\n"
             "  --help           Show this message.\n"
             f"\nSource: {DEFAULT_SOURCE_URL}"
         )
@@ -208,6 +238,12 @@ def main(argv: list[str] | None = None) -> None:
 
     if "--version" in args:
         print(f"discord-autoticker-bot {__version__}")
+        print("License: GNU AGPL-3.0-or-later (run --license for the full text)")
+        print(f"Source: {DEFAULT_SOURCE_URL}")
+        return
+
+    if "--license" in args:
+        print(license_text())
         return
 
     env_file = env_path()

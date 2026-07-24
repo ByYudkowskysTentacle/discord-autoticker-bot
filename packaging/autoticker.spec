@@ -21,11 +21,15 @@ ROOT = Path(SPECPATH).parent
 # database, which notably includes every Windows machine.
 tzdata_files = collect_data_files("tzdata")
 
+# The Windows build is shipped as a bare .exe with no sidecar files, so the
+# AGPL text has to live inside the executable itself — `--license` prints it.
+license_files = [(str(ROOT / "LICENSE"), ".")]
+
 a = Analysis(
     [str(ROOT / "bot.py")],
     pathex=[str(ROOT)],
     binaries=[],
-    datas=tzdata_files,
+    datas=tzdata_files + license_files,
     # discord.py and aiohttp pull these in dynamically, so PyInstaller's static
     # analysis can miss them.
     hiddenimports=[
