@@ -1,3 +1,10 @@
 discord.py>=2.3,<3.0
 aiohttp>=3.9,<4.0
 python-dotenv>=1.0,<2.0
+
+# Ships the IANA timezone database so the market-hours check works everywhere.
+# Windows has no system tz database at all, and a standalone binary can land on
+# a minimal Linux host that lacks /usr/share/zoneinfo — in both cases
+# zoneinfo.ZoneInfo() falls back to this package. Installed on every platform so
+# the built executables are genuinely self-contained.
+tzdata>=2024.1
