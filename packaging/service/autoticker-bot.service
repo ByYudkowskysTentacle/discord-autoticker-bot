@@ -1,0 +1,36 @@
+# systemd *user* service for the standalone bot on Linux.
+#
+# Install (replace __INSTALL_DIR__ with the folder holding the executable):
+#   mkdir -p ~/.config/systemd/user
+#   sed "s|__INSTALL_DIR__|$PWD|g" autoticker-bot.service \
+#       > ~/.config/systemd/user/autoticker-bot.service
+#   systemctl --user daemon-reload
+#   systemctl --user enable --now autoticker-bot
+#
+# Then, so it keeps running when you log out and starts at boot:
+#   sudo loginctl enable-linger $USER
+#
+# Logs:   journalctl --user -u autoticker-bot -f
+# Status: systemctl --user status autoticker-bot
+
+[Unit]
+Description=Discord auto-ticker bot
+Documentation=https://github.com/ByYudkowskysTentacle/discord-autoticker-bot
+After=network-online.target
+Wants=network-online.target
+
+# Give up instead of restarting forever on an unrecoverable fault such as a
+# revoked token, which exits immediately every time. These belong in [Unit] on
+# systemd 229 and newer.
+StartLimitIntervalSec=300
+StartLimitBurst=5
+
+[Service]
+Type=simple
+WorkingDirectory=__INSTALL_DIR__
+ExecStart=__INSTALL_DIR__/autoticker-bot --log-file __INSTALL_DIR__/autoticker-bot.log
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target

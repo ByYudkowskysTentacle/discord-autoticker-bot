@@ -138,11 +138,96 @@ Now type `$AAPL` in your Discord server. You should get a quote card back. Type
 | Change settings | Run it with `--setup` to redo the wizard, or edit `.env`. |
 | Check the version | Run it with `--version`. |
 | Read the license | Run it with `--license`. |
+| Save logs to a file | Run it with `--log-file bot.log` (rotates at 10 MB). |
 | See all options | Run it with `--help`. |
 
 To pass a flag on Windows, open a terminal in the folder and type
 `.\autoticker-bot-windows-x86_64.exe --setup` (or whatever you renamed it to). On
 macOS/Linux: `./autoticker-bot --setup`.
+
+---
+
+## 6. Keep it running 24/7 (optional)
+
+By default the bot runs only while its window is open. If you want it to survive
+crashes and start automatically after a reboot — the way the
+[Docker setup](DOCKER.md) does — register it with your operating system's own
+service manager.
+
+The definition you need ships with your download: the macOS and Linux archives
+contain it next to the program, and Windows users grab `windows-task.ps1` from
+the same [release page](https://github.com/ByYudkowskysTentacle/discord-autoticker-bot/releases/latest)
+as the `.exe`. (Working from a source checkout instead? They're in
+[`packaging/service/`](../packaging/service/).)
+
+All three pass `--log-file`, because a detached program has no console to print
+to. Windows Task Scheduler in particular throws stdout away, so without a log
+file you would have no way to diagnose a problem. The log rotates at 10 MB and
+keeps 3 files, matching the Docker configuration.
+
+### Linux (systemd)
+
+From the unpacked folder holding the executable:
+
+```bash
+mkdir -p ~/.config/systemd/user
+sed "s|__INSTALL_DIR__|$PWD|g" autoticker-bot.service \
+    > ~/.config/systemd/user/autoticker-bot.service
+systemctl --user daemon-reload
+systemctl --user enable --now autoticker-bot
+
+# Required, or the bot stops when you log out and won't start at boot:
+sudo loginctl enable-linger "$USER"
+```
+
+| Task | Command |
+| ---- | ------- |
+| Watch logs | `journalctl --user -u autoticker-bot -f` |
+| Status | `systemctl --user status autoticker-bot` |
+| Restart | `systemctl --user restart autoticker-bot` |
+| Remove | `systemctl --user disable --now autoticker-bot` |
+
+That `enable-linger` step is the one people miss — without it a user service is
+killed when your login session ends.
+
+### macOS (launchd)
+
+```bash
+mkdir -p ~/Library/LaunchAgents
+sed "s|__INSTALL_DIR__|$PWD|g" com.autoticker.bot.plist \
+    > ~/Library/LaunchAgents/com.autoticker.bot.plist
+launchctl load -w ~/Library/LaunchAgents/com.autoticker.bot.plist
+```
+
+Starts at login and restarts the bot if it exits. Watch it with
+`tail -f autoticker-bot.log`; remove it with `launchctl unload -w
+~/Library/LaunchAgents/com.autoticker.bot.plist`.
+
+### Windows (Task Scheduler)
+
+Download `windows-task.ps1` from the release page and put it in the same folder
+as the `.exe`, then in PowerShell from that folder:
+
+```powershell
+.\windows-task.ps1
+Start-ScheduledTask -TaskName AutoTickerBot
+```
+
+The task starts at log on, restarts the bot up to 3 times if it stops, and has
+**no execution time limit** — Task Scheduler otherwise stops tasks after 3 days,
+which would quietly kill the bot. Remove it with `.\windows-task.ps1 -Uninstall`.
+
+> Windows can't run this as a true service directly: a real service has to
+> answer the Service Control Manager, which a packaged Python program doesn't,
+> so `sc create` would have Windows kill it as unresponsive. Task Scheduler is
+> the way to do this without extra software. If you need the bot running
+> *before* anyone logs in, wrap it with [WinSW](https://github.com/winsw/winsw)
+> or [NSSM](https://nssm.cc/) — both need administrator rights.
+
+### Updating a service install
+
+Stop the service, replace the executable, start it again. Your `.env` sits
+beside the program and is not touched.
 
 ---
 
@@ -221,10 +306,11 @@ and include what you ran, what you expected, and the exact message you saw.
 | --- | --- | --- |
 | Setup effort | Lowest — download and answer questions | Install Docker first |
 | Guided setup wizard | ✅ Yes | Manual `.env` edit |
-| Restarts after a crash | ❌ No | ✅ Automatic |
-| Starts on machine reboot | ❌ Not without extra setup | ✅ Automatic |
-| Log rotation | ❌ No | ✅ Configured |
-| Best for | Trying it out; occasional use | A bot that stays online 24/7 |
+| Restarts after a crash | ✅ [with a service](#6-keep-it-running-247-optional) | ✅ Automatic |
+| Starts on machine reboot | ✅ [with a service](#6-keep-it-running-247-optional) | ✅ Automatic |
+| Log rotation | ✅ with `--log-file` | ✅ Automatic |
+| One setup that works everywhere | ❌ Different per OS | ✅ Same commands |
+| Best for | Trying it out; single-machine use | A bot that stays online 24/7 |
 
 **Recommendation:** start here to confirm you like the bot, then move to Docker
 if you want it running permanently. Your `.env` works with either — copy it

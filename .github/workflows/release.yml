@@ -67,10 +67,15 @@ jobs:
       # Windows ships as a bare .exe: nothing to unpack, just download and run.
       # The AGPL text travels inside the executable instead of beside it (see
       # `--license`), so no sidecar files are needed.
-      - name: Name the bare executable (Windows)
+      - name: Stage the bare executable and service helper (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: cp "dist/${{ matrix.binary }}" "${{ matrix.asset }}.exe"
+        run: |
+          set -euo pipefail
+          cp "dist/${{ matrix.binary }}" "${{ matrix.asset }}.exe"
+          # Attached as its own asset: the bare .exe has no folder to carry it,
+          # and users need it to run the bot as a scheduled task.
+          cp packaging/service/windows-task.ps1 ./windows-task.ps1
 
       # macOS and Linux stay archived: a bare binary downloaded through a
       # browser loses its executable permission bit, forcing users to chmod +x,
@@ -85,6 +90,13 @@ jobs:
           cp "dist/${{ matrix.binary }}" "staging/${{ matrix.asset }}/"
           cp LICENSE "staging/${{ matrix.asset }}/"
           cp docs/BINARY.md "staging/${{ matrix.asset }}/README.md"
+          # Service definitions ride along at the archive root so the commands in
+          # the guide work straight from the unpacked folder.
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            cp packaging/service/autoticker-bot.service "staging/${{ matrix.asset }}/"
+          else
+            cp packaging/service/com.autoticker.bot.plist "staging/${{ matrix.asset }}/"
+          fi
           tar -czf "${{ matrix.asset }}.tar.gz" -C staging "${{ matrix.asset }}"
 
       - uses: actions/upload-artifact@v6
@@ -93,6 +105,7 @@ jobs:
           path: |
             ${{ matrix.asset }}.exe
             ${{ matrix.asset }}.tar.gz
+            windows-task.ps1
           if-no-files-found: error
 
   release:
@@ -157,5 +170,14 @@ jobs:
 
             Verify your download against `SHA256SUMS.txt`.
 
-            Prefer a long-running install? [Docker](docs/DOCKER.md) restarts the
-            bot automatically on crash and reboot.
+            ## Running it 24/7
+
+            To have the bot restart after a crash and start on boot, register it
+            with your OS service manager — see
+            [Keep it running 24/7](docs/BINARY.md#6-keep-it-running-247-optional).
+            The macOS and Linux archives include the service definition; Windows
+            users want `windows-task.ps1` from the assets above.
+
+            [Docker](docs/DOCKER.md) remains the simplest route for a bot that
+            must stay online: one set of commands on every OS, with restart and
+            log rotation already configured.
