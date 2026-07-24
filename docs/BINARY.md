@@ -15,14 +15,20 @@ asks you a few questions. No Python, no Docker, nothing to install.
 Grab the file for your system from the
 [latest release](https://github.com/ByYudkowskysTentacle/discord-autoticker-bot/releases/latest):
 
-| Your system | File to download |
-| ----------- | ---------------- |
-| Windows | `autoticker-bot-windows-x86_64.zip` |
-| macOS (Apple Silicon — M1 and newer) | `autoticker-bot-macos-arm64.tar.gz` |
-| Linux | `autoticker-bot-linux-x86_64.tar.gz` |
+| Your system | File to download | Then |
+| ----------- | ---------------- | ---- |
+| Windows | `autoticker-bot-windows-x86_64.exe` | Nothing to unpack — it's the program itself |
+| macOS (Apple Silicon — M1 and newer) | `autoticker-bot-macos-arm64.tar.gz` | Unpack it (double-click) |
+| Linux | `autoticker-bot-linux-x86_64.tar.gz` | Unpack it: `tar -xzf autoticker-bot-linux-*.tar.gz` |
 
-Unzip it. You'll get a folder containing the program, the `LICENSE`, and this
-guide.
+**Windows** is a single `.exe` — download it and you're done; skip to step 2.
+
+**macOS and Linux** are packaged as `.tar.gz` archives so the file keeps its
+"executable" permission (a bare download would arrive unrunnable). Unpacking
+gives you a folder with the program, the `LICENSE`, and this guide.
+
+> The Windows `.exe` carries its license inside the program rather than as a
+> separate file — run it with `--license` to print the full terms.
 
 ---
 
@@ -49,7 +55,9 @@ server.
 
 ### Windows
 
-Double-click `autoticker-bot.exe`.
+Double-click the file you downloaded, `autoticker-bot-windows-x86_64.exe`. (Feel
+free to rename it to something shorter like `autoticker-bot.exe` first — it makes
+no difference to how it runs.)
 
 Windows will likely show **"Windows protected your PC"**. This appears because
 the app isn't code-signed (a certificate costs hundreds of dollars a year, which
@@ -129,10 +137,12 @@ Now type `$AAPL` in your Discord server. You should get a quote card back. Type
 | Stop the bot | Close the window, or press `Ctrl+C`. |
 | Change settings | Run it with `--setup` to redo the wizard, or edit `.env`. |
 | Check the version | Run it with `--version`. |
+| Read the license | Run it with `--license`. |
 | See all options | Run it with `--help`. |
 
 To pass a flag on Windows, open a terminal in the folder and type
-`autoticker-bot.exe --setup`. On macOS/Linux: `./autoticker-bot --setup`.
+`.\autoticker-bot-windows-x86_64.exe --setup` (or whatever you renamed it to). On
+macOS/Linux: `./autoticker-bot --setup`.
 
 ---
 
@@ -146,7 +156,7 @@ tampered with, compare the hash:
 shasum -a 256 autoticker-bot-linux-x86_64.tar.gz
 
 # Windows (PowerShell)
-Get-FileHash autoticker-bot-windows-x86_64.zip -Algorithm SHA256
+Get-FileHash autoticker-bot-windows-x86_64.exe -Algorithm SHA256
 ```
 
 The result should match the matching line in `SHA256SUMS.txt`.
