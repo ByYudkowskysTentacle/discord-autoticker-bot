@@ -252,3 +252,27 @@ This program is free software under the **GNU AGPL-3.0** — the full text ships
 in the `LICENSE` file beside it. You can use, study, share, and modify it. If you
 modify it and let other people use your version, you must publish your source
 too. Source: <https://github.com/ByYudkowskysTentacle/discord-autoticker-bot>
+
+---
+
+## For maintainers: cutting a release
+
+Two ways, both producing the same binaries and checksums.
+
+**From the browser (no git needed):** Actions tab → **release** workflow → **Run
+workflow** → type the version (e.g. `1.0.0`, no leading `v`) → optionally tick
+**Publish immediately**, otherwise you get a draft to review first. The tag is
+created for you at the current commit.
+
+**From a clone:**
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+Leaving **version** blank on a manual run builds all three binaries and releases
+nothing — useful for testing the packaging.
+
+Keep `__version__` in `bot.py` in step with the tag you release, since that is
+what `--version` reports.
