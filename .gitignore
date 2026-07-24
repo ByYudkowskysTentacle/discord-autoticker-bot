@@ -11,6 +11,12 @@ env/
 .pytest_cache/
 .mypy_cache/
 
+# PyInstaller build output
+build/
+dist/
+staging/
+*.manifest
+
 # OS / editor
 .DS_Store
 .idea/

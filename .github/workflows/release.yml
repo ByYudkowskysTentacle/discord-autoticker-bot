@@ -1,0 +1,124 @@
+name: release
+
+# Build the standalone executables and attach them to a GitHub Release.
+# Triggered by pushing a version tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`),
+# or manually from the Actions tab to smoke-test the build without releasing.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: autoticker-bot-linux-x86_64
+            binary: autoticker-bot
+          - os: windows-latest
+            asset: autoticker-bot-windows-x86_64
+            binary: autoticker-bot.exe
+          - os: macos-latest
+            asset: autoticker-bot-macos-arm64
+            binary: autoticker-bot
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - run: pip install -r requirements-dev.txt
+
+      # Fail early if the code is broken, before spending time on packaging.
+      - run: pytest -q
+
+      - run: pyinstaller packaging/autoticker.spec --clean --noconfirm
+
+      # Confirm the executable actually starts. --version exits immediately and
+      # touches no network or config, so it is a safe smoke test.
+      - name: Smoke-test the binary
+        shell: bash
+        run: |
+          set -euo pipefail
+          "dist/${{ matrix.binary }}" --version
+          "dist/${{ matrix.binary }}" --help > /dev/null
+
+      # Package the binary with the license and a short quick-start, since the
+      # AGPL requires the license to travel with the conveyed binary.
+      - name: Stage release archive
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "staging/${{ matrix.asset }}"
+          cp "dist/${{ matrix.binary }}" "staging/${{ matrix.asset }}/"
+          cp LICENSE "staging/${{ matrix.asset }}/"
+          cp docs/BINARY.md "staging/${{ matrix.asset }}/README.md"
+
+      - name: Archive (zip)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: Compress-Archive -Path "staging/${{ matrix.asset }}/*" -DestinationPath "${{ matrix.asset }}.zip"
+
+      - name: Archive (tar.gz)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: tar -czf "${{ matrix.asset }}.tar.gz" -C staging "${{ matrix.asset }}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: |
+            ${{ matrix.asset }}.zip
+            ${{ matrix.asset }}.tar.gz
+          if-no-files-found: error
+
+  release:
+    needs: build
+    # Only publish a Release for an actual tag push, not a manual test run.
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+          merge-multiple: true
+
+      # Checksums let users verify the download wasn't tampered with.
+      - name: Generate checksums
+        run: |
+          set -euo pipefail
+          cd artifacts
+          sha256sum * > SHA256SUMS.txt
+          cat SHA256SUMS.txt
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: artifacts/*
+          draft: true
+          generate_release_notes: true
+          body: |
+            ## Downloads
+
+            | Platform | File |
+            | -------- | ---- |
+            | Windows  | `autoticker-bot-windows-x86_64.zip` |
+            | macOS (Apple Silicon) | `autoticker-bot-macos-arm64.tar.gz` |
+            | Linux    | `autoticker-bot-linux-x86_64.tar.gz` |
+
+            Unpack, then run the executable — it walks you through setup on first
+            launch. See [docs/BINARY.md](docs/BINARY.md) for the full guide,
+            including how to get past the "unknown developer" warning your OS
+            will show (these builds are unsigned).
+
+            Verify your download against `SHA256SUMS.txt`.
+
+            Prefer a long-running install? [Docker](docs/DOCKER.md) restarts the
+            bot automatically on crash and reboot.

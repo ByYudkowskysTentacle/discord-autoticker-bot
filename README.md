@@ -25,14 +25,29 @@ Prev close 233.29 · Market open · via Finnhub
 - Per-user cooldown to prevent spam.
 - Optional single-channel lock via `ALLOWED_CHANNEL_ID`.
 - Timezone-correct US market-hours label (works on any host).
-- Runs from source or as a Docker container.
+- Guided setup wizard that validates your tokens before saving them.
+- Runs as a standalone app, a Docker container, or from source.
 - Type `$source` and the bot replies with a link to its source code.
+
+---
+
+## Pick how you want to run it
+
+| Path | Best for | Guide |
+| ---- | -------- | ----- |
+| **Standalone app** | Trying it out fast — download one file, answer a few questions. No Python or Docker needed. | [docs/BINARY.md](docs/BINARY.md) |
+| **Docker** | Keeping it online 24/7 — auto-restarts on crash and reboot. | [docs/DOCKER.md](docs/DOCKER.md) |
+| **From source** | Developing or modifying the bot. | [below](#from-source) |
+
+All three use the same two free credentials and the same `.env`, so you can move
+between them freely.
 
 ---
 
 ## Setup
 
 You'll need two free things: a **Discord bot token** and a **Finnhub API key**.
+(The standalone app's wizard walks you through both and checks them for you.)
 
 ### 1. Create the Discord bot
 
@@ -79,6 +94,15 @@ cp .env.example .env
 
 ## Running
 
+### Standalone app (easiest)
+
+Download the file for your OS from the
+[latest release](https://github.com/ByYudkowskysTentacle/discord-autoticker-bot/releases/latest),
+unpack it, and run it. On first launch it walks you through setup, verifying each
+credential against the live API before saving. Full walkthrough — including
+getting past your OS's "unknown developer" warning:
+**[docs/BINARY.md](docs/BINARY.md)**.
+
 ### From source
 
 Requires Python 3.9 or newer.
@@ -89,6 +113,9 @@ source .venv/bin/activate          # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 python bot.py
 ```
+
+The first run launches the setup wizard if no `.env` exists yet. Re-run it any
+time with `python bot.py --setup`.
 
 ### With Docker (recommended for self-hosting)
 
