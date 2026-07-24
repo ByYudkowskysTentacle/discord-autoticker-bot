@@ -13,8 +13,10 @@ venv/
 env/
 tests/
 docs/
+.github/
 README.md
 Dockerfile
 .dockerignore
 docker-compose.yml
+docker-compose.ghcr.yml
 requirements-dev.txt

@@ -167,7 +167,28 @@ SOURCE_URL=
 
 ## 6. Start the bot
 
-One command builds the image and starts the bot in the background:
+There are two ways to start it. **Most people should use Option A.**
+
+### Option A — pull the prebuilt image (fastest, no building)
+
+A ready-made image is published to GitHub Container Registry, so you can skip
+building entirely:
+
+```bash
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+This downloads a ready-to-run image (a few seconds) and starts the bot. It works
+even on small machines that struggle to build, like a Raspberry Pi, and the
+image is multi-arch so the same command works on x86 servers and ARM boards
+alike.
+
+> Getting a login/permission error on the pull? The image may not be published
+> as public yet — use Option B in the meantime.
+
+### Option B — build from source
+
+Builds the image locally from the code in this folder:
 
 ```bash
 docker compose up -d --build
@@ -175,11 +196,17 @@ docker compose up -d --build
 
 - `up` — create and start the container.
 - `-d` — "detached": run in the background so you can close the terminal.
-- `--build` — build the image first. You only strictly need `--build` the first
-  time and after code changes, but it's harmless to always include.
+- `--build` — build the image first. Needed the first time and after code
+  changes; harmless to always include.
 
-The first run downloads the base image and installs dependencies, so it may take
-a minute or two. Subsequent starts are near-instant.
+The first build downloads the base image and installs dependencies, so it may
+take a minute or two. Subsequent starts are near-instant.
+
+> **Which file am I using?** Option A uses `docker-compose.ghcr.yml`, so its
+> management commands need `-f docker-compose.ghcr.yml` (for example
+> `docker compose -f docker-compose.ghcr.yml logs -f`). Option B uses the
+> default `docker-compose.yml`, so it needs no `-f` flag. Pick one and stick
+> with it. The rest of this guide shows the Option B (default) commands.
 
 ---
 
@@ -249,17 +276,22 @@ docker compose up -d
 
 ## 9. Updating to a new version
 
-If you cloned with `git`:
+**If you used Option A (prebuilt image):** pull the latest image and recreate
+the container:
 
 ```bash
-git pull
+docker compose -f docker-compose.ghcr.yml pull
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+**If you used Option B (build from source):**
+
+```bash
+git pull            # or download and replace the files, keeping your .env
 docker compose up -d --build
 ```
 
-If you downloaded a ZIP: download the new ZIP, replace the files (keep your
-`.env`!), then run `docker compose up -d --build`.
-
-Clean up the old, now-unused image layers occasionally:
+Clean up old, now-unused image layers occasionally:
 
 ```bash
 docker image prune -f
@@ -316,3 +348,24 @@ docker image rm discord-autoticker-bot:latest
 
 Then delete the project folder. Your Discord bot application still exists in the
 Developer Portal — delete it there too if you no longer want it.
+
+---
+
+## For maintainers: publishing the image
+
+The GitHub Actions workflow (`.github/workflows/ci.yml`) runs the test suite on
+every push and pull request, and **publishes the image to GHCR** on pushes to
+`main` and on version tags. No secrets are required — it authenticates with the
+built-in `GITHUB_TOKEN`.
+
+Tags produced:
+
+- `latest` — updated on every push to `main`.
+- `1.2.3`, `1.2` — created when you push a git tag like `v1.2.3`
+  (`git tag v1.2.3 && git push origin v1.2.3`).
+
+**One-time step so others can pull without logging in:** after the first
+successful publish, open the repository on GitHub → **Packages** → the
+`discord-autoticker-bot` package → **Package settings** → **Change visibility**
+→ **Public**. Until you do this, Option A (the prebuilt image) fails for other
+users with a permission error and they must fall back to Option B.

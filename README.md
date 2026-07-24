@@ -92,9 +92,17 @@ python bot.py
 
 ### With Docker (recommended for self-hosting)
 
-With [Docker](https://www.docker.com/) installed and your `.env` filled in, one
-command builds and runs the bot in the background — auto-restarting on crash or
-reboot, with log rotation already configured:
+With [Docker](https://www.docker.com/) installed and your `.env` filled in, the
+bot runs in the background — auto-restarting on crash or reboot, with log
+rotation already configured.
+
+**Fastest — pull the prebuilt image** (no building; works on x86 and ARM):
+
+```bash
+docker compose -f docker-compose.ghcr.yml up -d
+```
+
+**Or build from source:**
 
 ```bash
 docker compose up -d --build
