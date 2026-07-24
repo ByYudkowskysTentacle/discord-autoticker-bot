@@ -51,6 +51,27 @@ class TestExtractTickers:
         assert extract_tickers("buying $NVDA!") == ["NVDA"]
 
 
+class TestTimezoneDataAvailable:
+    """Guards the market timezone against hosts with no system tz database.
+
+    Windows ships no IANA database, so ``zoneinfo`` must fall back to the
+    ``tzdata`` package. Clearing TZPATH reproduces that situation on any
+    platform, which is what makes this a portable regression test for the
+    Windows startup crash.
+    """
+
+    def test_market_tz_loads_without_system_tzdata(self):
+        import zoneinfo
+
+        zoneinfo.reset_tzpath([])
+        try:
+            # no_cache() bypasses the module-level cache so the lookup really
+            # goes back through TZPATH and then the tzdata package.
+            zoneinfo.ZoneInfo.no_cache("America/New_York")
+        finally:
+            zoneinfo.reset_tzpath()
+
+
 class TestIsMarketOpen:
     def test_open_midday_weekday(self):
         # Wednesday 12:00 ET

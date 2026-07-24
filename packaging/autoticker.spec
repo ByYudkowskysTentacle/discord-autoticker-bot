@@ -10,14 +10,22 @@
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files
+
 # SPECPATH is injected by PyInstaller; the project root is its parent.
 ROOT = Path(SPECPATH).parent
+
+# The IANA timezone database is a directory of data files, so it has to be
+# copied in explicitly — PyInstaller's code analysis can't see it. Without this
+# the binary raises ZoneInfoNotFoundError on any host with no system tz
+# database, which notably includes every Windows machine.
+tzdata_files = collect_data_files("tzdata")
 
 a = Analysis(
     [str(ROOT / "bot.py")],
     pathex=[str(ROOT)],
     binaries=[],
-    datas=[],
+    datas=tzdata_files,
     # discord.py and aiohttp pull these in dynamically, so PyInstaller's static
     # analysis can miss them.
     hiddenimports=[
@@ -26,6 +34,7 @@ a = Analysis(
         "discord",
         "dotenv",
         "zoneinfo",
+        "tzdata",
     ],
     hookspath=[],
     runtime_hooks=[],
