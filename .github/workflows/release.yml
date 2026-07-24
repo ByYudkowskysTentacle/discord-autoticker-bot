@@ -1,12 +1,27 @@
 name: release
 
 # Build the standalone executables and attach them to a GitHub Release.
-# Triggered by pushing a version tag (e.g. `git tag v1.0.0 && git push origin v1.0.0`),
-# or manually from the Actions tab to smoke-test the build without releasing.
+#
+# Two ways to cut a release:
+#   1. Push a version tag:  git tag v1.0.0 && git push origin v1.0.0
+#   2. Run this workflow from the Actions tab and fill in "version" — the tag is
+#      created for you, so no local git clone is needed.
+# Running it with an empty "version" just builds the binaries for testing and
+# releases nothing.
 on:
   push:
     tags: ["v*"]
   workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to release, e.g. 1.0.0 (leave blank to only build, no release)"
+        required: false
+        default: ""
+      publish:
+        description: "Publish immediately instead of leaving the release as a draft"
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: read
@@ -52,10 +67,15 @@ jobs:
       # Windows ships as a bare .exe: nothing to unpack, just download and run.
       # The AGPL text travels inside the executable instead of beside it (see
       # `--license`), so no sidecar files are needed.
-      - name: Name the bare executable (Windows)
+      - name: Stage the bare executable and service helper (Windows)
         if: runner.os == 'Windows'
         shell: bash
-        run: cp "dist/${{ matrix.binary }}" "${{ matrix.asset }}.exe"
+        run: |
+          set -euo pipefail
+          cp "dist/${{ matrix.binary }}" "${{ matrix.asset }}.exe"
+          # Attached as its own asset: the bare .exe has no folder to carry it,
+          # and users need it to run the bot as a scheduled task.
+          cp packaging/service/windows-task.ps1 ./windows-task.ps1
 
       # macOS and Linux stay archived: a bare binary downloaded through a
       # browser loses its executable permission bit, forcing users to chmod +x,
@@ -70,6 +90,13 @@ jobs:
           cp "dist/${{ matrix.binary }}" "staging/${{ matrix.asset }}/"
           cp LICENSE "staging/${{ matrix.asset }}/"
           cp docs/BINARY.md "staging/${{ matrix.asset }}/README.md"
+          # Service definitions ride along at the archive root so the commands in
+          # the guide work straight from the unpacked folder.
+          if [ "${{ runner.os }}" = "Linux" ]; then
+            cp packaging/service/autoticker-bot.service "staging/${{ matrix.asset }}/"
+          else
+            cp packaging/service/com.autoticker.bot.plist "staging/${{ matrix.asset }}/"
+          fi
           tar -czf "${{ matrix.asset }}.tar.gz" -C staging "${{ matrix.asset }}"
 
       - uses: actions/upload-artifact@v6
@@ -78,16 +105,28 @@ jobs:
           path: |
             ${{ matrix.asset }}.exe
             ${{ matrix.asset }}.tar.gz
+            windows-task.ps1
           if-no-files-found: error
 
   release:
     needs: build
-    # Only publish a Release for an actual tag push, not a manual test run.
-    if: startsWith(github.ref, 'refs/tags/v')
+    # Release for a tag push, or for a manual run that named a version. A manual
+    # run with a blank version just builds and stops here.
+    if: startsWith(github.ref, 'refs/tags/v') || inputs.version != ''
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      # Reject a malformed version before it becomes a permanent tag.
+      - name: Validate version input
+        if: inputs.version != ''
+        run: |
+          set -euo pipefail
+          if ! printf '%s' "${{ inputs.version }}" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-.][0-9A-Za-z.]+)?$'; then
+            echo "::error::Version must look like 1.0.0 or 1.0.0-rc1 (no leading 'v'). Got: ${{ inputs.version }}"
+            exit 1
+          fi
+
       - uses: actions/download-artifact@v7
         with:
           path: artifacts
@@ -104,7 +143,12 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           files: artifacts/*
-          draft: true
+          # On a tag push, release that tag. On a manual run, create the tag from
+          # the version input at the current commit.
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}', inputs.version) }}
+          # Draft by default so a release can be reviewed before it goes out;
+          # the manual run offers a "publish" checkbox to skip that.
+          draft: ${{ !inputs.publish }}
           generate_release_notes: true
           body: |
             ## Downloads
@@ -126,5 +170,14 @@ jobs:
 
             Verify your download against `SHA256SUMS.txt`.
 
-            Prefer a long-running install? [Docker](docs/DOCKER.md) restarts the
-            bot automatically on crash and reboot.
+            ## Running it 24/7
+
+            To have the bot restart after a crash and start on boot, register it
+            with your OS service manager — see
+            [Keep it running 24/7](docs/BINARY.md#6-keep-it-running-247-optional).
+            The macOS and Linux archives include the service definition; Windows
+            users want `windows-task.ps1` from the assets above.
+
+            [Docker](docs/DOCKER.md) remains the simplest route for a bot that
+            must stay online: one set of commands on every OS, with restart and
+            log rotation already configured.

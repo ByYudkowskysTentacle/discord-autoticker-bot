@@ -23,6 +23,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
+from logging.handlers import RotatingFileHandler
 from pathlib import Path
 
 import aiohttp
@@ -41,6 +42,12 @@ log = logging.getLogger("tickerbot")
 # a modified version make its source available to network users, so anyone
 # running a fork should override SOURCE_URL to point at their own repository.
 DEFAULT_SOURCE_URL = "https://github.com/ByYudkowskysTentacle/discord-autoticker-bot"
+
+LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s: %(message)s"
+# Match the Docker setup's rotation (3 files x 10 MB) so an unattended install
+# can't fill the disk no matter which way it is run.
+LOG_MAX_BYTES = 10 * 1024 * 1024
+LOG_BACKUP_COUNT = 3
 
 
 class Config:
@@ -215,12 +222,56 @@ def license_text() -> str:
         )
 
 
+def resolve_log_file(args: list[str]) -> str | None:
+    """Return where to write a log file, or None for console-only logging.
+
+    Accepts ``--log-file PATH`` and ``--log-file=PATH``, falling back to the
+    ``LOG_FILE`` environment variable so services and containers can set it
+    without changing the command line. Raises ``ValueError`` if the flag is
+    given without a path.
+    """
+    for index, arg in enumerate(args):
+        if arg == "--log-file":
+            if index + 1 < len(args) and not args[index + 1].startswith("-"):
+                return args[index + 1]
+            raise ValueError("--log-file needs a path, e.g. --log-file bot.log")
+        if arg.startswith("--log-file="):
+            value = arg.split("=", 1)[1]
+            if not value:
+                raise ValueError("--log-file needs a path, e.g. --log-file=bot.log")
+            return value
+    return os.getenv("LOG_FILE") or None
+
+
+def configure_logging(log_file: str | None) -> None:
+    """Send logs to the console, and to a rotating file when one is requested.
+
+    Running detached — as a systemd unit, a launchd agent, or a Windows
+    scheduled task — there is no console to read, so a file is the only way to
+    see what the bot is doing. Windows Task Scheduler in particular discards
+    stdout entirely.
+    """
+    handlers: list[logging.Handler] = [logging.StreamHandler()]
+    if log_file:
+        path = Path(log_file).expanduser()
+        if str(path.parent) not in ("", "."):
+            path.parent.mkdir(parents=True, exist_ok=True)
+        handlers.append(
+            RotatingFileHandler(
+                path,
+                maxBytes=LOG_MAX_BYTES,
+                backupCount=LOG_BACKUP_COUNT,
+                encoding="utf-8",
+            )
+        )
+    # force=True so repeated calls don't leave duplicate handlers behind.
+    logging.basicConfig(
+        level=logging.INFO, format=LOG_FORMAT, handlers=handlers, force=True
+    )
+
+
 def main(argv: list[str] | None = None) -> None:
     args = argv if argv is not None else sys.argv[1:]
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s %(name)s: %(message)s",
-    )
 
     if "--help" in args or "-h" in args:
         print(
@@ -229,6 +280,9 @@ def main(argv: list[str] | None = None) -> None:
             "Usage:\n"
             "  (no arguments)   Start the bot, running setup first if needed.\n"
             "  --setup          Re-run the interactive setup wizard.\n"
+            "  --log-file PATH  Also write logs to PATH, rotating at 10 MB\n"
+            "                   (keeps 3 files). Needed when running detached\n"
+            "                   as a service. Also settable via LOG_FILE.\n"
             "  --version        Print the version and exit.\n"
             "  --license        Print the full software license and exit.\n"
             "  --help           Show this message.\n"
@@ -245,6 +299,23 @@ def main(argv: list[str] | None = None) -> None:
     if "--license" in args:
         print(license_text())
         return
+
+    try:
+        log_file = resolve_log_file(args)
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        sys.exit(2)
+
+    try:
+        configure_logging(log_file)
+    except OSError as exc:
+        # A service pointed at an unwritable path should say so plainly rather
+        # than dying inside the logging machinery.
+        print(f"error: cannot write log file {log_file!r}: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    if log_file:
+        log.info("Writing logs to %s", Path(log_file).expanduser())
 
     env_file = env_path()
 
