@@ -90,15 +90,25 @@ pip install -r requirements.txt
 python bot.py
 ```
 
-### With Docker
+### With Docker (recommended for self-hosting)
+
+With [Docker](https://www.docker.com/) installed and your `.env` filled in, one
+command builds and runs the bot in the background — auto-restarting on crash or
+reboot, with log rotation already configured:
 
 ```bash
-docker build -t autoticker-bot .
-docker run --env-file .env autoticker-bot
+docker compose up -d --build
 ```
 
-The Dockerfile has no external state, so you can deploy the same image to a
-$5 VPS, Fly.io, Railway, or any container host.
+Check it started with `docker compose logs -f` (look for `Logged in as ...`).
+
+**👉 New to Docker or self-hosting? Follow the full step-by-step guide:
+[docs/DOCKER.md](docs/DOCKER.md).** It covers installing Docker on
+Windows/macOS/Linux, configuration, verifying it works, updating, and
+troubleshooting — no Python knowledge required.
+
+The image carries no external state, so you can run it on a $5 VPS, a home
+server, a Raspberry Pi, or any container host.
 
 ---
 

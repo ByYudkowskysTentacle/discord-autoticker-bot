@@ -1,3 +1,5 @@
+# Keep the build context small and the image clean. LICENSE is intentionally
+# NOT ignored — the Dockerfile copies it into the image.
 .git
 .gitignore
 .env
@@ -5,11 +7,14 @@
 __pycache__/
 *.py[cod]
 .pytest_cache/
+.mypy_cache/
 .venv/
 venv/
+env/
 tests/
+docs/
 README.md
-LICENSE
 Dockerfile
 .dockerignore
+docker-compose.yml
 requirements-dev.txt
