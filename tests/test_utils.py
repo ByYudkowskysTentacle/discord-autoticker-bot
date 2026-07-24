@@ -5,7 +5,13 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from utils import Cooldown, MARKET_TZ, extract_tickers, is_market_open
+from utils import (
+    Cooldown,
+    MARKET_TZ,
+    extract_tickers,
+    is_market_open,
+    is_source_request,
+)
 
 UTC = ZoneInfo("UTC")
 
@@ -84,6 +90,28 @@ class TestIsMarketOpen:
         # 23:00 UTC is 18:00 ET — after the close.
         now = datetime(2024, 1, 3, 23, 0, tzinfo=UTC)
         assert is_market_open(now) is False
+
+
+class TestIsSourceRequest:
+    def test_plain_source_request(self):
+        assert is_source_request("$source") is True
+
+    def test_source_request_in_sentence(self):
+        assert is_source_request("where is the $source for this bot?") is True
+
+    def test_case_insensitive(self):
+        assert is_source_request("$SOURCE") is True
+
+    def test_not_a_source_request(self):
+        assert is_source_request("checking $AAPL today") is False
+
+    def test_source_substring_not_triggered(self):
+        # "$sourcecode" should not count — the token must end at a boundary.
+        assert is_source_request("$sourcecode") is False
+
+    def test_empty_and_none_safe(self):
+        assert is_source_request("") is False
+        assert is_source_request(None) is False
 
 
 class TestCooldown:

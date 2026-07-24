@@ -1,3 +1,17 @@
+# discord-autoticker-bot — watches Discord chat for $TICKER mentions and replies
+# with a quote embed.
+# Copyright (C) 2026 discord-autoticker-bot contributors
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details. You should have received a copy of the license along with this
+# program. If not, see <https://www.gnu.org/licenses/>.
 """Pure helpers for the ticker bot: ticker parsing, market hours, cooldowns.
 
 Everything here is deliberately free of Discord and network concerns so it can
@@ -24,6 +38,16 @@ _TICKER_RE = re.compile(r"\$([A-Za-z]{1,5})(?![A-Za-z])")
 
 # Cap how many symbols a single message can trigger, to bound API usage.
 MAX_TICKERS_PER_MESSAGE = 5
+
+# Users can ask the bot where its source lives. AGPL requires that anyone
+# interacting with the bot over the network be able to obtain its source, so a
+# "$source" request is honored regardless of cooldown.
+_SOURCE_RE = re.compile(r"\$source\b", re.IGNORECASE)
+
+
+def is_source_request(text: str) -> bool:
+    """Return True if ``text`` asks the bot for its source code."""
+    return bool(_SOURCE_RE.search(text or ""))
 
 
 def extract_tickers(text: str, limit: int = MAX_TICKERS_PER_MESSAGE) -> list[str]:

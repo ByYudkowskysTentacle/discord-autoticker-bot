@@ -1,3 +1,17 @@
+# discord-autoticker-bot — watches Discord chat for $TICKER mentions and replies
+# with a quote embed.
+# Copyright (C) 2026 discord-autoticker-bot contributors
+#
+# This program is free software: you can redistribute it and/or modify it under
+# the terms of the GNU Affero General Public License as published by the Free
+# Software Foundation, either version 3 of the License, or (at your option) any
+# later version.
+#
+# This program is distributed in the hope that it will be useful, but WITHOUT
+# ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+# FOR A PARTICULAR PURPOSE. See the GNU Affero General Public License for more
+# details. You should have received a copy of the license along with this
+# program. If not, see <https://www.gnu.org/licenses/>.
 """Discord ticker-watcher bot.
 
 Watches messages for ``$TICKER`` mentions and replies with a quote embed.
@@ -15,9 +29,14 @@ import discord
 from dotenv import load_dotenv
 
 from market_api import Quote, QuoteError, fetch_quote
-from utils import Cooldown, extract_tickers, is_market_open
+from utils import Cooldown, extract_tickers, is_market_open, is_source_request
 
 log = logging.getLogger("tickerbot")
+
+# Where users are pointed to obtain the source. AGPL requires that operators of
+# a modified version make its source available to network users, so anyone
+# running a fork should override SOURCE_URL to point at their own repository.
+DEFAULT_SOURCE_URL = "https://github.com/ByYudkowskysTentacle/discord-autoticker-bot"
 
 
 class Config:
@@ -27,6 +46,7 @@ class Config:
         self.discord_token = os.getenv("DISCORD_TOKEN", "").strip()
         self.finnhub_token = os.getenv("FINNHUB_TOKEN", "").strip()
         self.cooldown_seconds = _float_env("COOLDOWN_SECONDS", 10.0)
+        self.source_url = os.getenv("SOURCE_URL", "").strip() or DEFAULT_SOURCE_URL
 
         channel = os.getenv("ALLOWED_CHANNEL_ID", "").strip()
         self.allowed_channel_id: int | None = int(channel) if channel else None
@@ -119,6 +139,15 @@ class TickerBot(discord.Client):
             self.config.allowed_channel_id is not None
             and message.channel.id != self.config.allowed_channel_id
         ):
+            return
+
+        # Honor source requests before anything else and without cooldown, so
+        # network users can always reach the source (AGPL section 13).
+        if is_source_request(message.content):
+            await message.channel.send(
+                f"📖 This bot is free software under the GNU AGPL-3.0. "
+                f"Source code: {self.config.source_url}"
+            )
             return
 
         tickers = extract_tickers(message.content)

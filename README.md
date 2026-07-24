@@ -5,7 +5,7 @@ with a quote embed — price, daily change, open/high/low, and previous close.
 
 ![status: v1](https://img.shields.io/badge/status-v1-brightgreen)
 ![python: 3.9+](https://img.shields.io/badge/python-3.9%2B-blue)
-![license: MIT](https://img.shields.io/badge/license-MIT-green)
+![license: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)
 
 Type something like `how's $AAPL doing?` and the bot replies with a card:
 
@@ -26,6 +26,7 @@ Prev close 233.29 · Market open · via Finnhub
 - Optional single-channel lock via `ALLOWED_CHANNEL_ID`.
 - Timezone-correct US market-hours label (works on any host).
 - Runs from source or as a Docker container.
+- Type `$source` and the bot replies with a link to its source code.
 
 ---
 
@@ -72,6 +73,7 @@ cp .env.example .env
 | `FINNHUB_TOKEN`      |    ✅    |    —    | Finnhub API key.                                   |
 | `ALLOWED_CHANNEL_ID` |    ❌    | (any)   | Restrict the bot to one channel by ID.             |
 | `COOLDOWN_SECONDS`   |    ❌    |  `10`   | Per-user seconds between replies. `0` disables it. |
+| `SOURCE_URL`         |    ❌    | upstream repo | URL the bot returns for `$source`. Set to your fork if you modify the bot (see License). |
 
 ---
 
@@ -144,7 +146,23 @@ gate.
 
 ## License
 
-[MIT](LICENSE). This is a clean-room implementation written from scratch; it is
-not a derivative of any existing bot's source. You're free to self-host, fork,
-and redistribute it. If you personalize the project, update the copyright line
-in `LICENSE`.
+[GNU AGPL-3.0](LICENSE). This is a clean-room implementation written from
+scratch; it is not a derivative of any existing bot's source.
+
+You're free to self-host, fork, and redistribute it — including commercially —
+but the AGPL's copyleft means **any modified version you distribute _or run as a
+network service_ must also be released under the AGPL, with its complete source
+made available to users.** The "run as a network service" clause is the key
+difference from the ordinary GPL: because a Discord bot reaches its users over
+the network rather than being handed to them as a download, the AGPL is what
+ensures a hosted fork can't quietly go closed-source.
+
+Practical implications if you modify the bot:
+
+- Keep the source of your modified version publicly available.
+- Set the `SOURCE_URL` environment variable to your fork so the `$source`
+  command points users to _your_ code, as the license requires.
+- Preserve the license notices at the top of each source file.
+
+If you personalize the project, you may update the copyright line in `LICENSE`
+to add your name alongside the existing holders.
